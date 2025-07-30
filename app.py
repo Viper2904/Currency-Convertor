@@ -1,37 +1,32 @@
-import streamlit as st
-import pickle
-import pandas as pd
+from flask import Flask,request,jsonify
+import requests
+app=Flask(__name__)
 
-def recommend(movie):
-    movie_index = movies[movies['title'] == movie].index[0]
-    distances = similarity[movie_index]
-    movies_list = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])[1:6]
+@app.route('/',methods=['POST'])
+def index():
+    data=request.get_json()
+    source_currency=data['queryResult']['parameters']['unit-currency']['currency']
+    amount=data['queryResult']['parameters']['unit-currency']['amount']
+    target_currency=data['queryResult']['parameters']['currency-name']
     
-    recommended_movies = []
-    for i in movies_list:
-        recommended_movies.append(movies.iloc[i[0]].title)
-    return recommended_movies
+    print(source_currency)
+    print(amount)
+    print(target_currency)
+    
+    cf=fetch_convertion_factor(source_currency,target_currency)
+    final_amount=amount*cf
+    
+    response={
+        'fulfillmentText':"{} {} is {} {}".format(amount,source_currency,final_amount,target_currency)
+    }
+    return jsonify(response)
 
-movies_dict = pickle.load(open('movie_dict.pkl', 'rb'))
-movies = pd.DataFrame(movies_dict)
-
-similarity = pickle.load(open('similarity.pkl', 'rb'))
-
-st.title('Movie Recommender System')
-
-selected_movie_name = st.selectbox('Select a movie you like:', movies['title'].values)
-
-if st.button('Recommend'):
-    recommendations = recommend(selected_movie_name)
-    col1, col2, col3, col4, col5 = st.columns(5)
-
-    with col1:
-        st.write(recommendations[0])
-    with col2:
-        st.write(recommendations[1])
-    with col3:
-        st.write(recommendations[2])
-    with col4:
-        st.write(recommendations[3])
-    with col5:
-        st.write(recommendations[4])
+def fetch_convertion_factor(source,target):
+    url="https://free.currconv.com/api/v8/convert?q={}_{}&compact=ultra&apiKey=9aa0c54f5ad4c460c36d".format(source,target)
+    
+    response=requests.get(url)
+    response=response.json()
+    
+    return response['{}_{}'.format(source,target)]
+if __name__=="__main__":
+    app.run(debug=True)
